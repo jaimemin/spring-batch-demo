@@ -6,13 +6,21 @@ import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.core.job.CompositeJobParametersValidator;
+import org.springframework.batch.core.job.DefaultJobParametersValidator;
+import org.springframework.batch.core.launch.support.RunIdIncrementer;
+import org.springframework.batch.core.listener.JobListenerFactoryBean;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+
+import java.util.Arrays;
 
 /**
  * JobRepository: 실행 중인 잡의 상태를 기록하는데 사용
@@ -34,23 +42,47 @@ public class SpringBatchDemoApplication {
     private StepBuilderFactory stepBuilderFactory;
 
     @Bean
+    public CompositeJobParametersValidator validator() {
+        CompositeJobParametersValidator validator = new CompositeJobParametersValidator();
+        DefaultJobParametersValidator defaultJobParametersValidator
+                = new DefaultJobParametersValidator(new String[] {"fileName"}, new String[] {"name", "currentDate"});
+        defaultJobParametersValidator.afterPropertiesSet();
+        validator.setValidators(Arrays.asList(new ParameterValidator(), defaultJobParametersValidator));
+
+        return validator;
+    }
+
+    @Bean
     public Job job() {
-        return this.jobBuilderFactory.get("job")
-                .start(step())
+        return this.jobBuilderFactory.get("basicJob")
+                .incrementer(new DailyJobTimestamper())
+                .start(step1())
+                .validator(validator())
+                .listener(JobListenerFactoryBean.getListener(new JobLoggerListener()))
+//                .incrementer(new RunIdIncrementer())
                 .build();
     }
 
     @Bean
-    public Step step() {
+    public Step step1() {
         return this.stepBuilderFactory.get("step1")
-                .tasklet(new Tasklet() {
-                    @Override
-                    public RepeatStatus execute(StepContribution stepContribution, ChunkContext chunkContext) throws Exception {
-                        System.out.println("Hello, World!");
+                .tasklet(helloWorldTasklet(null, null))
+                .build();
+    }
 
-                        return RepeatStatus.FINISHED;
-                    }
-                }).build();
+    @Bean
+    @StepScope
+    public Tasklet helloWorldTasklet(@Value("#{jobParameters['name']}") String name
+            , @Value("#{jobParameters['fileName']}") String fileName) {
+        return (stepContribution, chunkContext) -> {
+//            String name = (String) chunkContext.getStepContext()
+//                    .getJobParameters()
+//                    .get("name");
+            System.out.println(String.format("Hello, %s!", name));
+            System.out.println(String.format("fileName = %s", fileName));
+
+            return RepeatStatus.FINISHED;
+        };
     }
 
     public static void main(String[] args) {
