@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.concurrent.Callable;
 
-@Configuration
+//@Configuration
 public class CallableTaskletConfiguration {
 
     @Autowired
