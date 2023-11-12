@@ -2,10 +2,10 @@ package com.tistory.jaimemin.springbatchdemo;
 
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
-import org.springframework.cglib.core.SpringNamingPolicy;
 
 import java.util.Properties;
 
+@Deprecated
 public class JobLaunchRequest {
 
     private String name;
