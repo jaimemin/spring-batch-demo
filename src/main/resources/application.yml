@@ -6,3 +6,8 @@ spring:
     password: Aiccdev1!
   batch:
     initialize-schema: always
+    job:
+      enabled: false
+
+server:
+  port: 8888
