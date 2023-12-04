@@ -1,14 +1,18 @@
 package com.tistory.jaimemin.springbatchdemo.domain;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class Transaction {
 
     private String accountNumber;
 
-    private Date timestamp;
+    private Date transactionDate;
 
-    private double amount;
+    private Double amount;
+
+    private DateFormat formatter = new SimpleDateFormat("MM/dd/yyyy");
 
     public String getAccountNumber() {
         return accountNumber;
@@ -18,19 +22,28 @@ public class Transaction {
         this.accountNumber = accountNumber;
     }
 
-    public Date getTimestamp() {
-        return timestamp;
+    public Date getTransactionDate() {
+        return transactionDate;
     }
 
-    public void setTimestamp(Date timestamp) {
-        this.timestamp = timestamp;
+    public void setTransactionDate(Date transactionDate) {
+        this.transactionDate = transactionDate;
     }
 
-    public double getAmount() {
+    public Double getAmount() {
         return amount;
     }
 
-    public void setAmount(double amount) {
+    public void setAmount(Double amount) {
         this.amount = amount;
+    }
+
+    @Override
+    public String toString() {
+        return "Transaction{" +
+                "accountNumber='" + accountNumber + '\'' +
+                ", transactionDate=" + transactionDate +
+                ", amount=" + amount +
+                '}';
     }
 }

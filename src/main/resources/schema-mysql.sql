@@ -1,22 +1,20 @@
-CREATE  TABLE IF NOT EXISTS ACCOUNT_SUMMARY (
-    ID INT NOT NULL AUTO_INCREMENT ,
-    ACCOUNT_NUMBER VARCHAR(10) NOT NULL ,
-    CURRENT_BALANCE DECIMAL(10,2) NOT NULL ,
-    PRIMARY KEY (ID)
-)
-ENGINE = InnoDB;
+CREATE TABLE CUSTOMER  (
+                           id BIGINT  NOT NULL PRIMARY KEY ,
+                           firstName VARCHAR(11) NOT NULL ,
+                           middleInitial VARCHAR(1),
+                           lastName VARCHAR(10) NOT NULL,
+                           address VARCHAR(45) NOT NULL,
+                           city VARCHAR(16) NOT NULL,
+                           state CHAR(2) NOT NULL,
+                           zipCode CHAR(5)
+);
 
-CREATE  TABLE IF NOT EXISTS TRANSACTION (
-    ID INT NOT NULL AUTO_INCREMENT ,
-    TIMESTAMP TIMESTAMP NOT NULL ,
-    AMOUNT DECIMAL(8,2) NOT NULL ,
-    AMOUNT_SUMMARY_ID INT NOT NULL ,
-    PRIMARY KEY (id) ,
-    INDEX fk_Transaction_Account_Summary (AMOUNT_SUMMARY_ID ASC) ,
-    CONSTRAINT fk_Transaction_Account_Summary
-    FOREIGN KEY (AMOUNT_SUMMARY_ID )
-    REFERENCES ACCOUNT_SUMMARY (ID )
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION
-)
-ENGINE = InnoDB;
+DELIMITER //
+
+CREATE PROCEDURE customer_list(IN cityOption CHAR(16))
+BEGIN
+    SELECT * FROM CUSTOMER
+    WHERE city = cityOption;
+END //
+
+DELIMITER ;
