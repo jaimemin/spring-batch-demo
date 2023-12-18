@@ -9,12 +9,8 @@ CREATE TABLE CUSTOMER  (
                            zipCode CHAR(5)
 );
 
-DELIMITER //
-
-CREATE PROCEDURE customer_list(IN cityOption CHAR(16))
-BEGIN
-    SELECT * FROM CUSTOMER
-    WHERE city = cityOption;
-END //
-
-DELIMITER ;
+CREATE TABLE ACCOUNTEXECUTIVE (
+                                  id BIGINT NOT NULL PRIMARY KEY ,
+                                  firstName VARCHAR(45) NOT NULL,
+                                  lastName VARCHAR(45) NOT NULL
+)
