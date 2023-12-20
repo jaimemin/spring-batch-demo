@@ -1,69 +1,36 @@
 package com.tistory.jaimemin.springbatchdemo.domain;
 
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Data;
 
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.Pattern;
-import javax.validation.constraints.Size;
+import javax.persistence.*;
+import java.io.Serializable;
 
-@Getter
-@Setter
-public class Customer {
+@Data
+@Entity
+@Table(name = "customer")
+// @NodeEntity
+public class Customer implements Serializable {
 
-    @NotNull(message="First name is required")
-    @Pattern(regexp="[a-zA-Z]+", message="First name must be alphabetical")
+    private static final long serialVersionUID = 1L;
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+//	@GeneratedValue(strategy = UuidStrategy.class)
+    private long id;
+
     private String firstName;
 
-    @Size(min=1, max=1)
-    @Pattern(regexp="[a-zA-Z]", message="Middle initial must be alphabetical")
     private String middleInitial;
 
-    @NotNull(message="Last name is required")
-    @Pattern(regexp="[a-zA-Z]+", message="Last name must be alphabetical")
     private String lastName;
 
-    @NotNull(message="Address is required")
-    @Pattern(regexp="[0-9a-zA-Z\\. ]+")
     private String address;
 
-    @NotNull(message="City is required")
-    @Pattern(regexp="[a-zA-Z\\. ]+")
     private String city;
 
-    @NotNull(message="State is required")
-    @Size(min=2,max=2)
-    @Pattern(regexp="[A-Z]{2}")
     private String state;
 
-    @NotNull(message="Zip is required")
-    @Size(min=5,max=5)
-    @Pattern(regexp="\\d{5}")
     private String zip;
 
-    public Customer() {
-    }
-
-    public Customer(Customer original) {
-        this.firstName = original.getFirstName();
-        this.middleInitial = original.getMiddleInitial();
-        this.lastName = original.getLastName();
-        this.address = original.getAddress();
-        this.city = original.getCity();
-        this.state = original.getState();
-        this.zip = original.getZip();
-    }
-
-    @Override
-    public String toString() {
-        return "Customer{" +
-                "firstName='" + firstName + '\'' +
-                ", middleInitial='" + middleInitial + '\'' +
-                ", lastName='" + lastName + '\'' +
-                ", address='" + address + '\'' +
-                ", city='" + city + '\'' +
-                ", state='" + state + '\'' +
-                ", zip='" + zip + '\'' +
-                '}';
-    }
+    private String email;
 }

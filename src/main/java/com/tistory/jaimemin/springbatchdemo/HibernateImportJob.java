@@ -1,16 +1,16 @@
 package com.tistory.jaimemin.springbatchdemo;
 
-import com.tistory.jaimemin.springbatchdemo.batch.EvenFilteringItemProcessor;
 import com.tistory.jaimemin.springbatchdemo.domain.Customer;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.SessionFactory;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
-import org.springframework.batch.core.launch.support.RunIdIncrementer;
-import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.database.HibernateItemWriter;
+import org.springframework.batch.item.database.builder.HibernateItemWriterBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,10 +19,13 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.Resource;
 
-@EnableBatchProcessing
-@SpringBootApplication
+import javax.persistence.EntityManagerFactory;
+
+@Deprecated
+//@EnableBatchProcessing
+//@SpringBootApplication
 @RequiredArgsConstructor
-public class CustomItemProcessorJob {
+public class HibernateImportJob {
 
     private final JobBuilderFactory jobBuilderFactory;
 
@@ -30,11 +33,12 @@ public class CustomItemProcessorJob {
 
     @Bean
     @StepScope
-    public FlatFileItemReader<Customer> customerItemReader(
+    public FlatFileItemReader<Customer> customerFileReader(
             @Value("#{jobParameters['customerFile']}") Resource inputFile
     ) {
         return new FlatFileItemReaderBuilder<Customer>()
-                .name("customerItemReader")
+                .name("customerFileReader")
+                .resource(inputFile)
                 .delimited()
                 .names(new String[] {"firstName"
                         , "middleInitial"
@@ -44,39 +48,33 @@ public class CustomItemProcessorJob {
                         , "state"
                         , "zip"})
                 .targetType(Customer.class)
-                .resource(inputFile)
                 .build();
     }
 
     @Bean
-    public ItemWriter<Customer> itemWriter() {
-        return (items) -> items.forEach(System.out::println);
-    }
-
-    @Bean
-    public EvenFilteringItemProcessor itemProcessor() {
-        return new EvenFilteringItemProcessor();
-    }
-
-    @Bean
-    public Step copyFileStep() {
-        return this.stepBuilderFactory.get("copyFileStep")
-                .<Customer, Customer>chunk(5)
-                .reader(customerItemReader(null))
-                .processor(itemProcessor())
-                .writer(itemWriter())
+    public HibernateItemWriter<Customer> hibernateItemWriter(EntityManagerFactory entityManager) {
+        return new HibernateItemWriterBuilder<Customer>()
+                .sessionFactory(entityManager.unwrap(SessionFactory.class))
                 .build();
     }
 
     @Bean
-    public Job job() throws Exception {
-        return this.jobBuilderFactory.get("job")
-                .incrementer(new RunIdIncrementer())
-                .start(copyFileStep())
+    public Step hibernateFormatStep() throws Exception {
+        return this.stepBuilderFactory.get("hibernateFormatStep")
+                .<Customer, Customer>chunk(10)
+                .reader(customerFileReader(null))
+                .writer(hibernateItemWriter(null))
+                .build();
+    }
+
+    @Bean
+    public Job hibernateFormatJob() throws Exception {
+        return this.jobBuilderFactory.get("hibernateFormatJob")
+                .start(hibernateFormatStep())
                 .build();
     }
 
     public static void main(String[] args) {
-        SpringApplication.run(CustomItemProcessorJob.class, "customerFile=/input/customer.csv");
+        SpringApplication.run(HibernateImportJob.class, "customerFile=/data/customer.csv");
     }
 }

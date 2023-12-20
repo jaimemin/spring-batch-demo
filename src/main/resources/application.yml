@@ -8,6 +8,13 @@ spring:
     initialize-schema: always
     job:
       enabled: true
+  jpa:
+    properties:
+      hibernate:
+        current_session_context_class: org.springframework.orm.hibernate5.SpringSessionContext
+    generate-ddl: true
+    hibernate:
+      ddl-auto: create
 
 server:
   port: 8888

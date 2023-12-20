@@ -1,31 +1,32 @@
 package com.tistory.jaimemin.springbatchdemo;
 
 import com.tistory.jaimemin.springbatchdemo.domain.Customer;
-import com.tistory.jaimemin.springbatchdemo.domain.UniqueLastNameValidator;
 import lombok.RequiredArgsConstructor;
+import org.neo4j.ogm.session.SessionFactory;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
-import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.data.MongoItemWriter;
+import org.springframework.batch.item.data.Neo4jItemWriter;
+import org.springframework.batch.item.data.builder.MongoItemWriterBuilder;
+import org.springframework.batch.item.data.builder.Neo4jItemWriterBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
-import org.springframework.batch.item.validator.BeanValidatingItemProcessor;
-import org.springframework.batch.item.validator.ValidatingItemProcessor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.Resource;
-import org.springframework.stereotype.Component;
+import org.springframework.data.mongodb.core.MongoOperations;
 
 @Deprecated
 //@EnableBatchProcessing
 //@SpringBootApplication
 @RequiredArgsConstructor
-public class ValidationJob {
+public class Neo4jImportJob {
 
     private final JobBuilderFactory jobBuilderFactory;
 
@@ -33,11 +34,12 @@ public class ValidationJob {
 
     @Bean
     @StepScope
-    public FlatFileItemReader<Customer> customerItemReader(
+    public FlatFileItemReader<Customer> customerFileReader(
             @Value("#{jobParameters['customerFile']}") Resource inputFile
-            ) {
+    ) {
         return new FlatFileItemReaderBuilder<Customer>()
-                .name("customerItemReader")
+                .name("customerFileReader")
+                .resource(inputFile)
                 .delimited()
                 .names(new String[] {"firstName"
                         , "middleInitial"
@@ -47,52 +49,33 @@ public class ValidationJob {
                         , "state"
                         , "zip"})
                 .targetType(Customer.class)
-                .resource(inputFile)
                 .build();
     }
 
     @Bean
-    public ItemWriter<Customer> itemWriter() {
-        return (items) -> items.forEach(System.out::println);
+    public Neo4jItemWriter<Customer> neo4jItemWriter(SessionFactory sessionFactory) {
+        return new Neo4jItemWriterBuilder<Customer>()
+				.sessionFactory(sessionFactory)
+				.build();
     }
 
     @Bean
-    public UniqueLastNameValidator validator() {
-        UniqueLastNameValidator uniqueLastNameValidator = new UniqueLastNameValidator();
-        uniqueLastNameValidator.setName("validator");
-
-        return uniqueLastNameValidator;
-    }
-
-    @Bean
-    public ValidatingItemProcessor<Customer> customerValidatingItemProcessor() {
-        return new ValidatingItemProcessor<>(validator());
-    }
-
-//    @Bean
-//    public BeanValidatingItemProcessor<Customer> customerValidatingItemProcessor() {
-//        return new BeanValidatingItemProcessor<>();
-//    }
-
-    @Bean
-    public Step copyFileStep() {
-        return this.stepBuilderFactory.get("copyFileStep")
-                .<Customer, Customer>chunk(5)
-                .reader(customerItemReader(null))
-                .processor(customerValidatingItemProcessor())
-                .writer(itemWriter())
-                .stream(validator())
+    public Step neo4jFormatStep() throws Exception {
+        return this.stepBuilderFactory.get("neo4jFormatStep")
+                .<Customer, Customer>chunk(10)
+                .reader(customerFileReader(null))
+                .writer(neo4jItemWriter(null))
                 .build();
     }
 
     @Bean
-    public Job job() throws Exception {
-        return this.jobBuilderFactory.get("job")
-                .start(copyFileStep())
+    public Job neo4jFormatJob() throws Exception {
+        return this.jobBuilderFactory.get("neo4jFormatJob")
+                .start(neo4jFormatStep())
                 .build();
     }
 
     public static void main(String[] args) {
-        SpringApplication.run(ValidationJob.class, "customerFile=/input/customer.csv");
+        SpringApplication.run(Neo4jImportJob.class, "customerFile=/data/customer.csv");
     }
 }

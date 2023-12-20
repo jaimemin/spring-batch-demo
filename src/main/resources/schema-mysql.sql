@@ -1,16 +1,11 @@
 CREATE TABLE CUSTOMER  (
-                           id BIGINT  NOT NULL PRIMARY KEY ,
-                           firstName VARCHAR(11) NOT NULL ,
-                           middleInitial VARCHAR(1),
-                           lastName VARCHAR(10) NOT NULL,
-                           address VARCHAR(45) NOT NULL,
-                           city VARCHAR(16) NOT NULL,
-                           state CHAR(2) NOT NULL,
-                           zipCode CHAR(5)
-);
-
-CREATE TABLE ACCOUNTEXECUTIVE (
-                                  id BIGINT NOT NULL PRIMARY KEY ,
-                                  firstName VARCHAR(45) NOT NULL,
-                                  lastName VARCHAR(45) NOT NULL
-)
+                           id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                           first_name VARCHAR(45) ,
+                           middle_initial VARCHAR(1) ,
+                           last_name VARCHAR(45) ,
+                           address VARCHAR(45) ,
+                           city VARCHAR(45) ,
+                           state VARCHAR(2) ,
+                           zip VARCHAR(5),
+                           email VARCHAR(255)
+) ;

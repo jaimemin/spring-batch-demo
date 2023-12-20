@@ -8,22 +8,25 @@ import org.springframework.batch.core.configuration.annotation.EnableBatchProces
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
-import org.springframework.batch.core.launch.support.RunIdIncrementer;
-import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.data.MongoItemWriter;
+import org.springframework.batch.item.data.builder.MongoItemWriterBuilder;
+import org.springframework.batch.item.database.JpaItemWriter;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
-import org.springframework.batch.item.support.ScriptItemProcessor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.Resource;
+import org.springframework.data.mongodb.core.MongoOperations;
+
+import javax.persistence.EntityManagerFactory;
 
 @Deprecated
-//@SpringBootApplication
 //@EnableBatchProcessing
+//@SpringBootApplication
 @RequiredArgsConstructor
-public class ScriptItemProcessorJob {
+public class MongoImportJob {
 
     private final JobBuilderFactory jobBuilderFactory;
 
@@ -31,11 +34,12 @@ public class ScriptItemProcessorJob {
 
     @Bean
     @StepScope
-    public FlatFileItemReader<Customer> customerItemReader(
+    public FlatFileItemReader<Customer> customerFileReader(
             @Value("#{jobParameters['customerFile']}") Resource inputFile
     ) {
         return new FlatFileItemReaderBuilder<Customer>()
-                .name("customerItemReader")
+                .name("customerFileReader")
+                .resource(inputFile)
                 .delimited()
                 .names(new String[] {"firstName"
                         , "middleInitial"
@@ -45,43 +49,34 @@ public class ScriptItemProcessorJob {
                         , "state"
                         , "zip"})
                 .targetType(Customer.class)
-                .resource(inputFile)
                 .build();
     }
 
     @Bean
-    public ItemWriter<Customer> itemWriter() {
-        return (items) -> items.forEach(System.out::println);
-    }
-
-    @Bean
-    @StepScope
-    public ScriptItemProcessor<Customer, Customer> itemProcessor(@Value("#{jobParameters['script']}") Resource script) {
-        ScriptItemProcessor<Customer, Customer> itemProcessor = new ScriptItemProcessor<>();
-        itemProcessor.setScript(script);
-
-        return itemProcessor;
-    }
-
-    @Bean
-    public Step copyFileStep() {
-        return this.stepBuilderFactory.get("copyFileStep")
-                .<Customer, Customer>chunk(5)
-                .reader(customerItemReader(null))
-                .processor(itemProcessor(null))
-                .writer(itemWriter())
+    public MongoItemWriter<Customer> mongoItemWriter(MongoOperations mongoTemplate) {
+        return new MongoItemWriterBuilder<Customer>()
+                .collection("customers")
+                .template(mongoTemplate)
                 .build();
     }
 
     @Bean
-    public Job job() throws Exception {
-        return this.jobBuilderFactory.get("job")
-                .incrementer(new RunIdIncrementer())
-                .start(copyFileStep())
+    public Step mongoFormatStep() throws Exception {
+        return this.stepBuilderFactory.get("mongoFormatStep")
+                .<Customer, Customer>chunk(10)
+                .reader(customerFileReader(null))
+                .writer(mongoItemWriter(null))
+                .build();
+    }
+
+    @Bean
+    public Job mongoFormatJob() throws Exception {
+        return this.jobBuilderFactory.get("mongoFormatJob")
+                .start(mongoFormatStep())
                 .build();
     }
 
     public static void main(String[] args) {
-        SpringApplication.run(ScriptItemProcessorJob.class, "customerFile=/input/customer.csv", "script=/upperCase.js");
+        SpringApplication.run(MongoImportJob.class, "customerFile=/data/customer.csv");
     }
 }
