@@ -1,13 +1,8 @@
 package com.tistory.jaimemin.springbatchdemo.configuration;
 
-import com.tistory.jaimemin.springbatchdemo.batch.CustomerUpdateClassifier;
-import com.tistory.jaimemin.springbatchdemo.batch.CustomerItemValidator;
-import com.tistory.jaimemin.springbatchdemo.domain.CustomerAddressUpdate;
-import com.tistory.jaimemin.springbatchdemo.domain.CustomerContactUpdate;
-import com.tistory.jaimemin.springbatchdemo.domain.CustomerNameUpdate;
-import com.tistory.jaimemin.springbatchdemo.domain.CustomerUpdate;
+import com.tistory.jaimemin.springbatchdemo.batch.*;
+import com.tistory.jaimemin.springbatchdemo.domain.*;
 import lombok.RequiredArgsConstructor;
-
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
@@ -17,19 +12,27 @@ import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
+import org.springframework.batch.item.database.JdbcCursorItemReader;
 import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
+import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
+import org.springframework.batch.item.file.FlatFileItemWriter;
+import org.springframework.batch.item.file.MultiResourceItemWriter;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
+import org.springframework.batch.item.file.builder.MultiResourceItemWriterBuilder;
 import org.springframework.batch.item.file.mapping.FieldSetMapper;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
 import org.springframework.batch.item.file.transform.LineTokenizer;
 import org.springframework.batch.item.file.transform.PatternMatchingCompositeLineTokenizer;
 import org.springframework.batch.item.support.ClassifierCompositeItemWriter;
 import org.springframework.batch.item.validator.ValidatingItemProcessor;
+import org.springframework.batch.item.xml.StaxEventItemReader;
+import org.springframework.batch.item.xml.builder.StaxEventItemReaderBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
+import org.springframework.oxm.jaxb.Jaxb2Marshaller;
 import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
@@ -50,6 +53,9 @@ public class ImportJobConfiguration {
         return this.jobBuilderFactory.get("importJob")
                 .incrementer(new RunIdIncrementer())
                 .start(importCustomerUpdates())
+                .next(importTransactions())
+                .next(applyTransactions())
+                .next(generateStatements(null))
                 .build();
     }
 
@@ -193,6 +199,155 @@ public class ImportJobConfiguration {
                         "WHERE customer_id = :customerId")
                 .dataSource(dataSource)
                 .build();
+    }
+
+    @Bean
+    public Step importTransactions() {
+        return this.stepBuilderFactory.get("importTransactions")
+                .<Transaction, Transaction>chunk(100)
+                .reader(transactionItemReader(null))
+                .writer(transactionItemWriter(null))
+                .build();
+    }
+
+    @Bean
+    @StepScope
+    public StaxEventItemReader<Transaction> transactionItemReader(
+            @Value("#{jobParameters['transactionFile']}") Resource transactionFile
+    ) {
+        Jaxb2Marshaller unmarshaller = new Jaxb2Marshaller();
+        unmarshaller.setClassesToBeBound(Transaction.class);
+
+        return new StaxEventItemReaderBuilder<Transaction>()
+                .name("transactionItemReader")
+                .resource(transactionFile)
+                .addFragmentRootElements("transaction")
+                .unmarshaller(unmarshaller)
+                .build();
+    }
+
+    @Bean
+    public JdbcBatchItemWriter<Transaction> transactionItemWriter(DataSource dataSource) {
+        return new JdbcBatchItemWriterBuilder<Transaction>()
+                .dataSource(dataSource)
+                .sql("INSERT INTO transaction (transaction_id, " +
+                        "account_account_id, " +
+                        "description, " +
+                        "credit, " +
+                        "debit, " +
+                        "timestamp) VALUES (:transactionId, " +
+                        ":accountId, " +
+                        ":description, " +
+                        ":credit, " +
+                        ":debit, " +
+                        ":timestamp)")
+                .beanMapped()
+                .build();
+    }
+
+    @Bean
+    public Step applyTransactions() {
+        return this.stepBuilderFactory.get("applyTransactions")
+                .<Transaction, Transaction>chunk(100)
+                .reader(applyTransactionReader(null))
+                .writer(applyTransactionWriter(null))
+                .faultTolerant()
+                .skip(Exception.class)
+                .skipLimit(2000)
+                .build();
+    }
+
+    @Bean
+    public JdbcCursorItemReader<Transaction> applyTransactionReader(DataSource dataSource) {
+        return new JdbcCursorItemReaderBuilder<Transaction>()
+                .name("applyTransactionReader")
+                .dataSource(dataSource)
+                .sql("select transaction_id, " +
+                        "account_account_id, " +
+                        "description, " +
+                        "credit, " +
+                        "debit, " +
+                        "timestamp " +
+                        "from transaction " +
+                        "order by timestamp")
+                .rowMapper((resultSet, i) ->
+                        new Transaction(
+                                resultSet.getLong("transaction_id"),
+                                resultSet.getLong("account_account_id"),
+                                resultSet.getString("description"),
+                                resultSet.getBigDecimal("credit"),
+                                resultSet.getBigDecimal("debit"),
+                                resultSet.getTimestamp("timestamp")))
+                .build();
+    }
+
+    @Bean
+    public JdbcBatchItemWriter<Transaction> applyTransactionWriter(DataSource dataSource) {
+        return new JdbcBatchItemWriterBuilder<Transaction>()
+                .dataSource(dataSource)
+                .sql("UPDATE account SET " +
+                        "balance = balance + :transactionAmount " +
+                        "WHERE account_id = :accountId")
+                .beanMapped()
+                .build();
+    }
+
+    @Bean
+    public Step generateStatements(AccountItemProcessor itemProcessor) {
+        return this.stepBuilderFactory.get("generateStatements")
+                .<Statement, Statement>chunk(1)
+                .reader(statementItemReader(null))
+                .processor(itemProcessor)
+                .writer(statementItemWriter(null))
+                .build();
+    }
+
+    @Bean
+    public JdbcCursorItemReader<Statement> statementItemReader(DataSource dataSource) {
+        return new JdbcCursorItemReaderBuilder<Statement>()
+                .name("statementItemReader")
+                .dataSource(dataSource)
+                .sql("SELECT * FROM customer")
+                .rowMapper((resultSet, i) -> {
+                    Customer customer = new Customer(resultSet.getLong("customer_id"),
+                            resultSet.getString("first_name"),
+                            resultSet.getString("middle_name"),
+                            resultSet.getString("last_name"),
+                            resultSet.getString("address1"),
+                            resultSet.getString("address2"),
+                            resultSet.getString("city"),
+                            resultSet.getString("state"),
+                            resultSet.getString("postal_code"),
+                            resultSet.getString("ssn"),
+                            resultSet.getString("email_address"),
+                            resultSet.getString("home_phone"),
+                            resultSet.getString("cell_phone"),
+                            resultSet.getString("work_phone"),
+                            resultSet.getInt("notification_pref"));
+
+                    return new Statement(customer);
+                }).build();
+    }
+
+    @Bean
+    @StepScope
+    public MultiResourceItemWriter<Statement> statementItemWriter(@Value("#{jobParameters['outputDirectory']}") Resource outputDir) {
+        return new MultiResourceItemWriterBuilder<Statement>()
+                .name("statementItemWriter")
+                .resource(outputDir)
+                .itemCountLimitPerResource(1)
+                .delegate(individualStatementItemWriter())
+                .build();
+    }
+
+    @Bean
+    public FlatFileItemWriter<Statement> individualStatementItemWriter() {
+        FlatFileItemWriter<Statement> itemWriter = new FlatFileItemWriter<>();
+        itemWriter.setName("individualStatementItemWriter");
+        itemWriter.setHeaderCallback(new StatementHeaderCallback());
+        itemWriter.setLineAggregator(new StatementLineAggregator());
+
+        return itemWriter;
     }
 
     private Map<String, LineTokenizer> getTokenizers(DelimitedLineTokenizer recordType1, DelimitedLineTokenizer recordType2, DelimitedLineTokenizer recordType3) {

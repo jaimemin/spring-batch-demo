@@ -9,10 +9,13 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class SpringBatchDemoApplication {
 
     public static void main(String[] args) {
-        String [] realArgs = {
-            "customerUpdateFile=/data/customer_update_shuffled.csv",
-            "transactionFile=/data/transactions.xml"
-		};
+        String[] realArgs = {"customerUpdateFile=/data/customer_update_shuffled.csv",
+                "transactionFile=/data/transactions.xml",
+                "outputDirectory=file:\\C:\\Users\\USER\\IdeaProjects\\spring-batch-demo\\src\\main\\resources\\output\\"};
+//        String [] realArgs = {
+//            "customerUpdateFile=/data/customer_update_shuffled.csv",
+//            "transactionFile=/data/transactions.xml"
+//		};
 
         SpringApplication.run(SpringBatchDemoApplication.class, realArgs);
     }
